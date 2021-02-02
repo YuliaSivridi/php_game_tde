@@ -18,15 +18,15 @@ function trequest($method, $inputarray) {
 }
 
 // get user from db
-function select_user($dblink, $chat_id) {
-	$query_usr = "select * from game_tde where chat_id='".$chat_id."'";
+function select_user($dblink, $tbl_name, $chat_id) {
+	$query_usr = "select * from ".$tbl_name." where chat_id='".$chat_id."'";
 	$result_usr = mysqli_query($dblink, $query_usr);
     return $result_usr;
 }
 
 // players & matches -> insert to db
-function update_all($dblink, $chat_id, $kbd_id, $result_id, $players, $matches) {
-	$query_upd = "update game_tde set 
+function update_all($dblink, $tbl_name, $chat_id, $kbd_id, $result_id, $players, $matches) {
+	$query_upd = "update ".$tbl_name." set 
 		kbd_id='".$kbd_id."',
 		result_id='".$result_id."',
 		players='".json_encode($players, JSON_UNESCAPED_UNICODE)."',
@@ -116,11 +116,11 @@ if (($input['message']) != null) {
 	$user_lang = $input['message']['from']['language_code'];
 	$user_msg = trim($input['message']['text']);
 
-	$result_usr = select_user($dblink, $chat_id);
+	$result_usr = select_user($dblink, $tbl_name, $chat_id);
 	// user new -> insert to db
 	if (mysqli_num_rows($result_usr) <= 0) {
 		$user_lang = (array_key_exists($user_lang, $lang)) ? $user_lang : 'en';
-		$query_ins = "insert into game_tde (chat_id, user_lang, user_name) values ('".$chat_id."', '".$user_lang."', 
+		$query_ins = "insert into ".$tbl_name." (chat_id, user_lang, user_name) values ('".$chat_id."', '".$user_lang."', 
 			'".$input['message']['from']['first_name']." ".$input['message']['from']['last_name']."')";
 		$result_ins = mysqli_query($dblink, $query_ins);
 		$answer = trequest('sendMessage', ['chat_id' => $chat_id, 'text' => $lang[$user_lang]['hi1'].$input['message']['from']['first_name'].$lang[$user_lang]['hi2']]);
@@ -131,6 +131,8 @@ if (($input['message']) != null) {
 		$row = mysqli_fetch_assoc($result_usr);
 		$kbd_id = $row['kbd_id']; $user_lang = $row['user_lang'];
 		$user_lang = (array_key_exists($user_lang, $lang)) ? $user_lang : 'en';
+		$lkeys = array_keys($lang); $flag_lang = [];
+		foreach ($lkeys as $lkey) $flag_lang[] = $flags[$lkey].' '.$lkey;
 		$players = json_decode($row['players'], false, 512, JSON_UNESCAPED_UNICODE);
 		$matches = json_decode($row['matches'], false, 512, JSON_UNESCAPED_UNICODE);
 
@@ -141,14 +143,14 @@ if (($input['message']) != null) {
 
 			case '/lang':
 				$answer = trequest('sendMessage', ['chat_id' => $chat_id, 'text' => $lang[$user_lang]['lang_ask'],
-					'reply_markup' => json_encode(['keyboard' => [['🇬🇧 en', '🇩🇪 de', '🇫🇷 fr', '🇧🇷 pt-br', '🇺🇦 uk', '🇷🇺 ru']], 'resize_keyboard' => true])]);
+					'reply_markup' => json_encode(['keyboard' => [$flag_lang], 'resize_keyboard' => true])]);
 				break;
 
 			// msg -> chosen language
-			case '🇬🇧 en': case '🇩🇪 de': case '🇫🇷 fr': case '🇧🇷 pt-br': case '🇺🇦 uk': case '🇷🇺 ru': {
+			case in_array($user_msg, $flag_lang): {
 				$l = explode(' ', $user_msg);
 				$user_lang = $l[1];
-				$query_lng = "update game_tde set user_lang='".$user_lang."' where chat_id='".$chat_id."'";
+				$query_lng = "update ".$tbl_name." set user_lang='".$user_lang."' where chat_id='".$chat_id."'";
 				$result_lng = mysqli_query($dblink, $query_lng);
 				$answer = trequest('sendMessage', ['chat_id' => $chat_id, 'text' => $lang[$user_lang]['lang_ok'],
 					'reply_markup' => json_encode(['remove_keyboard' => true])]);
@@ -157,7 +159,7 @@ if (($input['message']) != null) {
 
 			case '/newgame':
 				// clear db for new match
-				$query_cln = "update game_tde set kbd_id=0, result_id=0, players='', matches='' where chat_id='".$chat_id."'";
+				$query_cln = "update ".$tbl_name." set kbd_id=0, result_id=0, players='', matches='' where chat_id='".$chat_id."'";
 				$result_cln = mysqli_query($dblink, $query_cln);
 				$answer = trequest('sendMessage', ['chat_id' => $chat_id, 'text' => $lang[$user_lang]['new']]);
 				break;
@@ -198,7 +200,7 @@ if (($input['message']) != null) {
 					$tresponse = json_decode($answer, true);
 					$kbd_id = $tresponse['result']['message_id'];
 					// players & matches -> insert to db
-					update_all($dblink, $chat_id, $kbd_id, 0, $players, $matches);
+					update_all($dblink, $tbl_name, $chat_id, $kbd_id, 0, $players, $matches);
 				}
 		}
 	} mysqli_free_result($result_usr);
@@ -214,7 +216,7 @@ if (($input['message']) != null) {
 	$mp = explode('-', $cb_data);
 	if ($mp[2] != 'nothing') {
 		// all from db -> players & matches
-		$result_usr = select_user($dblink, $chat_id);
+		$result_usr = select_user($dblink, $tbl_name, $chat_id);
 		$row = mysqli_fetch_assoc($result_usr);
 		$kbd_id = $row['kbd_id']; $user_lang = $row['user_lang'];
 		$user_lang = (array_key_exists($user_lang, $lang)) ? $user_lang : 'en';
@@ -276,6 +278,6 @@ if (($input['message']) != null) {
 		$tresponse = json_decode($answer, true);
 		$kbd_id = $tresponse['result']['message_id'];
 		// players & matches -> insert to db
-		update_all($dblink, $chat_id, $kbd_id, $result_id, $players, $matches);
+		update_all($dblink, $tbl_name, $chat_id, $kbd_id, $result_id, $players, $matches);
 	}
 } mysqli_close($dblink); ?>
