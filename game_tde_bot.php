@@ -35,6 +35,14 @@ function update_all($dblink, $tbl_name, $chat_id, $kbd_id, $result_id, $players,
 	$result_upd = mysqli_query($dblink, $query_upd);
 }
 
+// MarkdownV2 escape
+function escapeMarkdownV2($string) {
+	return str_replace(
+		['`', '~', '!', '#', '*', '_', '-', '+', '=', '(', ')', '[', ']', '{', '}', '|', '>', '.'],
+		['\`', '\~', '\!', '\#', '\*', '\_', '\-', '\+', '\=', '\(', '\)', '\[', '\]', '\{', '\}', '\|', '\>', '\.'],
+		$string);
+}
+
 // move player to next place in correct grid
 function move_player($matches, $gridMatch, $crnt_match, $crnt_place, $players, $p) {
 	foreach ($matches as $m => $match) {
@@ -82,9 +90,9 @@ function howManyAlive($players) {
 // show result table at the end of the game
 function showResults($winner, $loser, $players, $title) {
 	$place = 1; $played = [];
-	$summary = '🏆 '.$title;
-	$summary .= "\n".'🥇 *'.$winner->name.'*'; $place++;
-	$summary .= "\n".'🥈 *'.$loser->name.'*'; $place++;
+	$summary = "🏆 ".$title;
+	$summary .= "\n🥇 *".escapeMarkdownV2($winner->name)."*"; $place++;
+	$summary .= "\n🥈 *".escapeMarkdownV2($loser->name)."*"; $place++;
 	foreach ($players as $p => $player) {
 		if (!is_array($played[$player->played])) $played[$player->played] = [];
 		$played[$player->played][] = $player->name;
@@ -98,11 +106,12 @@ function showResults($winner, $loser, $players, $title) {
 			if ($first) {
 				$first = false;
 				$summary .= "\n";
-				if ($place == 3) { $summary .= '🥉'; $place++; }
-				else { $summary .= ' #'.($place++); }
-			} $summary .= ' _'.($name).'_ ';
+				if ($place == 3) { $summary .= "🥉"; $place++; }
+				else { $summary .= " \#".($place++); }
+			} $summary .= " _".escapeMarkdownV2($name)."_ ";
 		}
-	} return $summary;
+	}
+	return $summary;
 }
 
 // get user request
@@ -176,8 +185,8 @@ if (($input['message']) != null) {
 							$already = true;
 				if ($already) {
 					$answer = trequest('sendMessage', ['chat_id' => $chat_id,
-						'text' => $lang[$user_lang]['alr1'].$name.$lang[$user_lang]['alr2'],
-						'parse_mode' => 'Markdown']);
+						'text' => $lang[$user_lang]['alr1'].escapeMarkdownV2($name).$lang[$user_lang]['alr2'],
+						'parse_mode' => 'MarkdownV2']);
 
 				// new player -> players
 				} else {
@@ -194,8 +203,8 @@ if (($input['message']) != null) {
 					$answer = trequest('deleteMessage', ['chat_id' => $chat_id, 'message_id' => $kbd_id]);
 					$ikbd = draw_keyboard($matches, -1, -1);
 					$answer = trequest('sendMessage', ['chat_id' => $chat_id,
-						'text' => $lang[$user_lang]['add1'].$user_msg.$lang[$user_lang]['add2'],
-						'parse_mode' => 'Markdown',
+						'text' => $lang[$user_lang]['add1'].escapeMarkdownV2($name).$lang[$user_lang]['add2'],
+						'parse_mode' => 'MarkdownV2',
 						'reply_markup' => json_encode(['inline_keyboard' => $ikbd])]);
 					$tresponse = json_decode($answer, true);
 					$kbd_id = $tresponse['result']['message_id'];
@@ -252,7 +261,7 @@ if (($input['message']) != null) {
 			$summary = showResults($players[$pw_id], $players[$pl_id], $players, $lang[$user_lang]['res']);
 			$answer = trequest('sendMessage', ['chat_id' => $chat_id, 
 				'text' => $summary,
-				'parse_mode' => 'Markdown']);
+				'parse_mode' => 'MarkdownV2']);
 			$tresponse = json_decode($answer, true);
 			$result_id = $tresponse['result']['message_id'];
 		} else { // move loser & winner
@@ -272,8 +281,8 @@ if (($input['message']) != null) {
 		$answer = trequest('deleteMessage', ['chat_id' => $chat_id, 'message_id' => $kbd_id]);
 		$ikbd = draw_keyboard($matches, $m, $mpl_id);
 		$answer = trequest('sendMessage', ['chat_id' => $chat_id,
-			'text' => $lang[$user_lang]['win1'].$players[$pw_id]->name.$lang[$user_lang]['win2'].$m.$lang[$user_lang]['win3'],
-			'parse_mode' => 'Markdown',
+			'text' => $lang[$user_lang]['win1'].escapeMarkdownV2($players[$pw_id]->name).$lang[$user_lang]['win2'].$m.$lang[$user_lang]['win3'],
+			'parse_mode' => 'MarkdownV2',
 			'reply_markup' => json_encode(['inline_keyboard' => $ikbd], JSON_UNESCAPED_UNICODE)]);
 		$tresponse = json_decode($answer, true);
 		$kbd_id = $tresponse['result']['message_id'];
